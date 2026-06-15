@@ -25,8 +25,8 @@
 | Segment | Meaning | Color |
 |---------|---------|-------|
 | `Sonnet 4.6` | Active model | Magenta |
-| `84K` | Total input tokens this session | Cyan |
-| `42%` | Context window used | Green → yellow → orange → red |
+| `122K` | Total input tokens this session | Cyan |
+| `61%` | Context window used | Green → yellow → orange → red |
 | `AC!!` | Auto-compact imminent (≤ 20% remaining) | Yellow → orange → red |
 | `🌙 OFF-PK` / `PEAK` | Anthropic API peak hours (5–11 AM Pacific, Mon–Fri) | Green (off-peak) / yellow (peak) |
 | `my-project` | Working directory (last path segment) | Orange |
