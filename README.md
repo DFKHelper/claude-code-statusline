@@ -6,7 +6,7 @@
 
 <br />
 
-<img src="preview.png" alt="Status line: Sonnet 4.6 | 100% | AC!! | 🌙 OFF-PK (17h 39m) | Projects" />
+<img src="preview.png" alt="Claude Code status bar showing: Sonnet 4.6 | 122K tokens | 61% context used | moon OFF-PK (16h 49m) | Projects directory" />
 
 <br />
 <br />
