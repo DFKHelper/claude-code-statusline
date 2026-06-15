@@ -11,10 +11,10 @@
 <br />
 <br />
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-43853d?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-555?style=flat-square)](https://github.com/DFKHelper/claude-code-statusline)
-[![Claude Code](https://img.shields.io/badge/Claude%20Code-compatible-blueviolet?style=flat-square)](https://claude.ai/code)
+[![License: MIT — open source](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Requires Node.js 18 or higher](https://img.shields.io/badge/Node.js-18%2B-43853d?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org)
+[![Supported platforms: macOS, Linux, Windows](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-555?style=flat-square)](https://github.com/DFKHelper/claude-code-statusline)
+[![Compatible with Claude Code](https://img.shields.io/badge/Claude%20Code-compatible-blueviolet?style=flat-square)](https://claude.ai/code)
 
 </div>
 
@@ -39,14 +39,14 @@ The peak/off-peak indicator includes a live countdown to the next state change â
 
 **Prerequisites:** Node.js (18+) and Claude Code.
 
-**1.** Copy `statusline.js` to `~/.claude/`:
+1. Copy `statusline.js` to `~/.claude/`:
 
 ```bash
 curl -o ~/.claude/statusline.js \
   https://raw.githubusercontent.com/DFKHelper/claude-code-statusline/main/statusline.js
 ```
 
-**2.** Add the `statusLine` key to `~/.claude/settings.json`:
+2. Add the `statusLine` key to `~/.claude/settings.json`:
 
 <details>
 <summary><strong>macOS / Linux</strong></summary>
@@ -76,7 +76,7 @@ curl -o ~/.claude/statusline.js \
 
 </details>
 
-**3.** Restart Claude Code. The status bar updates on every turn.
+3. Restart Claude Code. The status bar updates on every turn.
 
 ---
 
@@ -124,7 +124,7 @@ Comment out the matching `parts.push(...)` call near the bottom of the file.
 
 `statusline-debug.js` captures the raw JSON payload Claude Code pipes to the command and writes it to disk â€” handy when building your own status line.
 
-**1.** Temporarily point `settings.json` at the debug script:
+1. Temporarily point `settings.json` at the debug script:
 
 ```json
 {
@@ -135,9 +135,9 @@ Comment out the matching `parts.push(...)` call near the bottom of the file.
 }
 ```
 
-**2.** Run Claude Code for one turn. The status bar shows `DEBUG: wrote ...`.
+2. Run Claude Code for one turn. The status bar shows `DEBUG: wrote ...`.
 
-**3.** Open the output file (default: `~/statusline-capture.json`). Override the path with `STATUSLINE_DEBUG_PATH`.
+3. Open the output file (default: `~/statusline-capture.json`). Override the path with `STATUSLINE_DEBUG_PATH`.
 
 `example-input.json` in this repo shows a sanitized example of the full payload schema, so you can build against it without running a live session.
 
