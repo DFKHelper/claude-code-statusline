@@ -85,7 +85,7 @@ process.stdin.on('end', () => {
     // Reasoning effort (Claude Code only; absent from Copilot CLI's schema,
     // so this quietly no-ops there). Abbreviated to match the short labels
     // Claude Code itself uses for /model's effort picker.
-    const EFFORT_ABBREV = { low: 'sm', medium: 'md', high: 'h', xhigh: 'xh', max: 'MX' };
+    const EFFORT_ABBREV = { low: 'low', medium: 'md', high: 'h', xhigh: 'xh', max: 'MX' };
     const effortRaw = j?.effort?.level ?? j?.effortLevel;
     if (typeof effortRaw === 'string' && effortRaw && modelStr) {
       modelStr += ' (' + (EFFORT_ABBREV[effortRaw.toLowerCase()] || effortRaw) + ')';

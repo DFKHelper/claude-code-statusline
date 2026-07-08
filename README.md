@@ -29,7 +29,7 @@
 
 | Segment | Meaning | Color |
 |---------|---------|-------|
-| `Sonnet 4.6 (h)` | Active model, plus reasoning effort in parens (`sm`/`md`/`h`/`xh`/`MX` — Claude Code only, omitted on Copilot CLI) | Magenta |
+| `Sonnet 4.6 (h)` | Active model, plus reasoning effort in parens (`low`/`md`/`h`/`xh`/`MX` — Claude Code only, omitted on Copilot CLI) | Magenta |
 | `122K` | Tokens used in the current context window | Green (< 250K) → yellow (< 1M) → red (≥ 1M) |
 | `61%` | Context window used | Green → yellow → orange → red |
 | `AC!!` | Auto-compact imminent (≤ 20% context remaining) | Yellow → orange → red |
