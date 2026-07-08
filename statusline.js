@@ -52,9 +52,12 @@ process.stdin.on('end', () => {
     const j = JSON.parse(d);
     const cw = j?.context_window || j?.contextWindow || {};
 
-    // Total tokens used in the current context window.
-    const n = cw.current_context_tokens ?? cw.currentContextTokens ?? cw.total_input_tokens
-      ?? j?.currentTokens ?? j?.usage?.input_tokens ?? j?.usage?.inputTokens ?? 0;
+    // Total tokens used in the current context window. rawN stays undefined
+    // when none of these fields exist at all, so a legitimate zero still
+    // renders (only a payload with none of these fields omits the segment).
+    const rawN = cw.current_context_tokens ?? cw.currentContextTokens ?? cw.total_input_tokens
+      ?? j?.currentTokens ?? j?.usage?.input_tokens ?? j?.usage?.inputTokens;
+    const n = rawN ?? 0;
 
     // Context window size, to compute a "% used" figure.
     const limit = cw.displayed_context_limit ?? cw.displayedContextLimit ?? cw.limit
@@ -82,8 +85,9 @@ process.stdin.on('end', () => {
     const rawCwd = j?.cwd || j?.workspace?.current_dir || j?.workspace?.currentDir || '';
     cwdStr = rawCwd ? rawCwd.split(/[\\/]/).filter(Boolean).pop() || rawCwd : '';
 
-    if (n >= 1000) tok = Math.floor(n / 1000) + 'K';
-    else if (n > 0) tok = '<1K';
+    if (n >= 1000)                tok = Math.floor(n / 1000) + 'K tokens';
+    else if (n > 0)               tok = '<1K tokens';
+    else if (rawN !== undefined)  tok = '0 tokens';
 
     // Context % used with color tiers
     if (usedPct !== undefined) {
@@ -154,11 +158,11 @@ process.stdin.on('end', () => {
 
   const parts = [];
   if (modelStr)   parts.push(FG.magenta + modelStr + FG.reset);
-  if (tok)        parts.push(FG.cyan + tok + FG.reset);
   if (ctxPct)     parts.push(ctxPct);
   if (compactStr) parts.push(compactStr);
   parts.push(peak);
   if (cwdStr)     parts.push(FG.orange + cwdStr + FG.reset);
+  if (tok)        parts.push(FG.cyan + tok + FG.reset);
 
   process.stdout.write(parts.join(' ' + FG.gray + '|' + FG.reset + ' '));
   process.exit(0);
