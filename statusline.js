@@ -1,7 +1,10 @@
-// Copilot CLI status line, adapted from DFKHelper/claude-code-statusline
-// (https://github.com/DFKHelper/claude-code-statusline), which targets
-// Claude Code's stdin JSON schema (context_window.total_input_tokens /
-// remaining_percentage, model.display_name, cwd).
+// Dual-compatible status line for both Claude Code and GitHub Copilot CLI.
+// One script, one set of defensive field lookups, works as the statusLine
+// command for either tool — point it at whichever settings.json applies.
+//
+// Claude Code's stdin JSON schema is stable and documented (see
+// https://code.claude.com/docs/en/statusline): context_window.total_input_tokens,
+// context_window.remaining_percentage, model.display_name, cwd.
 //
 // GitHub Copilot CLI's statusLine command receives a different, and less
 // formally documented, JSON schema. Field names below were confirmed from:
@@ -11,9 +14,8 @@
 //     `displayed_context_limit` under `context_window`
 //   - blog.madkoo.net's defensive field-probing statusline script, which
 //     enumerates every field-name variant seen across Copilot CLI versions
-// Field access below stays defensive (tries several possible paths) for the
-// same reason those references do: Copilot CLI's statusline payload shape
-// isn't pinned by a stable public schema yet.
+// Field access below stays defensive (tries several possible paths) so the
+// same script resolves correctly against either schema without modification.
 //
 // Colors below use 24-bit truecolor SGR codes tuned to be vivid/"neon" on
 // a pure-black background, matching the high-contrast treatment applied to
