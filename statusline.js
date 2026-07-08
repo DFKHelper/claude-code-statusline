@@ -94,9 +94,20 @@ process.stdin.on('end', () => {
     const rawCwd = j?.cwd || j?.workspace?.current_dir || j?.workspace?.currentDir || '';
     cwdStr = rawCwd ? rawCwd.split(/[\\/]/).filter(Boolean).pop() || rawCwd : '';
 
-    if (n >= 1000)                tok = Math.floor(n / 1000) + 'K tokens';
-    else if (n > 0)               tok = '<1K tokens';
-    else if (rawN !== undefined)  tok = '0 tokens';
+    // Tiered by absolute token count: green under 250K, yellow under 1M,
+    // red (M-scale) at 1M+. total_input_tokens is normally bounded by the
+    // context window (~200K), so the yellow/red tiers only fire on
+    // schemas/situations that report a larger, less-bounded figure.
+    if (n >= 1000000) {
+      tok = FG.red + (n / 1000000).toFixed(2) + 'M tokens' + FG.reset;
+    } else if (n >= 1000) {
+      const color = n >= 250000 ? FG.yellow : FG.green;
+      tok = color + Math.floor(n / 1000) + 'K tokens' + FG.reset;
+    } else if (n > 0) {
+      tok = FG.green + '<1K tokens' + FG.reset;
+    } else if (rawN !== undefined) {
+      tok = FG.green + '0 tokens' + FG.reset;
+    }
 
     // Context % used with color tiers
     if (usedPct !== undefined) {
@@ -171,7 +182,7 @@ process.stdin.on('end', () => {
   if (compactStr) parts.push(compactStr);
   parts.push(peak);
   if (cwdStr)     parts.push(FG.orange + cwdStr + FG.reset);
-  if (tok)        parts.push(FG.cyan + tok + FG.reset);
+  if (tok)        parts.push(tok);
 
   process.stdout.write(parts.join(' ' + FG.gray + '|' + FG.reset + ' '));
   process.exit(0);
