@@ -98,13 +98,14 @@ Spawns the real `copilot.exe` inside a pseudo-console (via [`node-pty`](https://
 Copilot CLI's built-in themes (`default`, `github`, `dim`, `high-contrast`, `colorblind`) are baked into the `copilot.exe` binary as hardcoded 24-bit truecolor (and some standard 16/256-color) ANSI codes — no terminal color scheme change can fix low contrast, since Copilot CLI's colors bypass the terminal's palette entirely. `copilot-hc.js` patches this at the byte-stream level:
 
 - **Grayish foreground colors** are blended sharply towards white (bright, legible labels/text), snapping to pure white once close enough.
-- **Very dark grays** (the box-drawing border glyphs `▄▀╻╹┃` around the prompt input) get a light blend instead, so the border stays thin and visible rather than disappearing or turning into a thick bright line.
-- **Grayish backgrounds** are left untouched (passed through unchanged). Copilot's overall canvas background is already forced to pure black via the separate OSC 11 rewrite below, so panel backgrounds (e.g. the prompt input box, `~20,27,34`) keep their natural, slightly-lighter tone — this is what makes the box's right edge read as a border, since that edge has no explicit border glyph and relies purely on background contrast against the canvas. Forcing panel backgrounds to black too made that border disappear.
+- **Prompt-input border glyphs** (`▄▀╻╹┃`) receive an explicit subdued gray foreground, then the previously active text color is restored so following text cannot inherit a darker terminal default, including across delayed redraw chunks.
+- **Foreground resets** (`39`, `0`, and bare SGR resets) become explicit white, so uncolored text remains high contrast even when the terminal's default-color handling is unavailable.
+- **Dark gray backgrounds** are left untouched (passed through unchanged). Copilot's overall canvas background is already forced to pure black via the separate OSC 11 rewrite below, so panel backgrounds (e.g. the prompt input box, `~20,27,34`) keep their natural, slightly-lighter tone — this is what makes the box's right edge read as a border, since that edge has no explicit border glyph and relies purely on background contrast against the canvas. Mid/light gray backgrounds such as ANSI white (`47`) are darkened so a delayed prompt redraw cannot turn the input section white; near-white selection highlights remain unchanged.
 - **Non-gray hues** (diff green/red, status line colors, etc.) get a saturation + lightness boost for a vivid neon look, capped so text stays readable and backgrounds stay dark enough for overlaid text.
 - **Your own submitted prompt line** (`❯ <text>` in the feed) is detected by its distinct near-white RGB(240,246,252) and recolored to bright neon teal, so your messages visually stand out from Copilot's replies.
 - **OSC 10/11** (the actual terminal default foreground/background, set independently of any per-cell color) are forced to white-on-black.
 
-All the brightness/saturation constants live near the top of the file (`BORDER_BLEND_MAX_AVG`, `BORDER_BLEND_FACTOR`, `TEXT_BLEND_FACTOR`, `WHITE_SNAP_THRESHOLD`, and the `neonify()` saturation/lightness math) — tune them there if you want a different intensity.
+All the brightness/saturation constants live near the top of the file (`DARK_BACKGROUND_MAX_AVG`, `TEXT_BLEND_FACTOR`, `WHITE_SNAP_THRESHOLD`, and the `neonify()` saturation/lightness math) — tune them there if you want a different intensity.
 
 #### Requirements
 
@@ -129,7 +130,7 @@ All the brightness/saturation constants live near the top of the file (`BORDER_B
 #### Notes / limitations
 
 - This is a wrapper around the official binary, not a patch to it — it doesn't touch or modify `copilot.exe` itself, so CLI auto-updates are unaffected.
-- The wrapper only rewrites color-setting SGR/OSC sequences; it does not otherwise alter Copilot CLI's behavior, input handling, or output content.
+- The wrapper only rewrites color-related SGR/OSC sequences (including foreground resets/defaults); it does not otherwise alter Copilot CLI's behavior, input handling, or output content.
 - If Copilot CLI changes its internal color palette in a future version, the specific RGB values referenced here (e.g. the user-prompt-line detection color `240,246,252`) may need to be re-captured. To recapture, spawn `copilot.exe` directly under `node-pty` and dump the raw byte stream to a file (see the constants/comments in `copilot-hc.js` for the exact colors currently matched).
 
 ---

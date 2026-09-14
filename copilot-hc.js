@@ -13,9 +13,8 @@
 // its output stream byte-for-byte, and rewrites every color-setting SGR
 // sequence through transformColor() before forwarding to the real
 // terminal:
-//   - Grayish colors are brightened (foreground) or forced to black
-//     (background), with a special thin blend for the dark border glyphs
-//     around the prompt input so they stay visible but subtle.
+//   - Grayish colors are brightened (foreground) or darkened (background),
+//     while prompt-border glyphs receive their own subdued explicit color.
 //   - Non-gray hues (diffs, status line colors, etc.) get a saturation +
 //     lightness boost for a vivid "neon" look.
 //   - The user's own submitted prompt line gets recolored to bright teal.
@@ -72,24 +71,23 @@ function hslToRgb(h, s, l) {
 
 // Grayscale foreground text: push dim grays and off-whites much brighter,
 // snapping anything already near-white to pure white (255,255,255) so
-// "white" text reads as truly white, not off-white/light-gray.
+// "white" text reads as truly white, not off-white/light-gray. Prompt border
+// glyphs are styled separately in rewrite(), so this applies to all text.
 // copilot.exe draws the box-drawing border glyphs (▄▀╻╹┃) around the
 // prompt input in two different dim grays: a very dark tone (~20,27,34)
 // for the horizontal ▄▀ lines, and a lighter mid-gray (~129,139,152) for
-// the vertical ┃ characters. Both get a subtle border-only blend (much
-// weaker than normal text) so the whole border reads as one thin,
-// consistent line instead of the vertical bar being blown out to
-// near-white while the horizontal lines stay dim.
-const BORDER_BLEND_MAX_AVG = 150;
-const BORDER_BLEND_FACTOR = 0.22;
+// the vertical ┃ characters. rewrite() gives those glyphs a single subtle
+// border color so the whole border reads as one thin, consistent line.
+const DARK_BACKGROUND_MAX_AVG = 150;
 const TEXT_BLEND_FACTOR = 0.78;
 const WHITE_SNAP_THRESHOLD = 245;
+const LIGHT_BACKGROUND_DARKEN_FACTOR = 0.15;
+const PROMPT_BORDER_COLOR = '\x1b[38;2;72;77;83m';
+const HIGH_CONTRAST_FOREGROUND_PARAMS = '38;2;255;255;255';
+const DEFAULT_FOREGROUND = `\x1b[${HIGH_CONTRAST_FOREGROUND_PARAMS}m`;
+const PROMPT_BORDER_GLYPHS = new Set(['▄', '▀', '╻', '╹', '┃']);
 
 function boostGrayForeground(avg, r, g, b) {
-  if (avg <= BORDER_BLEND_MAX_AVG) {
-    const blend = v => v + (255 - v) * BORDER_BLEND_FACTOR;
-    return [clamp255(blend(r)), clamp255(blend(g)), clamp255(blend(b))];
-  }
   const blended = v => v + (255 - v) * TEXT_BLEND_FACTOR;
   let [nr, ng, nb] = [clamp255(blended(r)), clamp255(blended(g)), clamp255(blended(b))];
   const newAvg = (nr + ng + nb) / 3;
@@ -109,7 +107,12 @@ function boostGrayForeground(avg, r, g, b) {
 // (e.g. a text selection highlight) are left alone as before; genuinely
 // dark ones are now passed through unchanged rather than blackened.
 function boostGrayBackground(avg, r, g, b) {
-  return null;
+  // Keep the dark prompt panel and the near-white selection highlight as-is.
+  // Copilot's ANSI white background (47) resolves to roughly 229,229,229;
+  // darken that middle range so a delayed prompt redraw cannot turn white.
+  if (avg <= DARK_BACKGROUND_MAX_AVG || avg >= WHITE_SNAP_THRESHOLD) return null;
+  const darken = v => v * LIGHT_BACKGROUND_DARKEN_FACTOR;
+  return [clamp255(darken(r)), clamp255(darken(g)), clamp255(darken(b))];
 }
 
 // Non-gray hue: push saturation and brightness up for a "neon" look.
@@ -182,12 +185,16 @@ function xterm256ToRgb(n) {
 // standard 16-color) to a transformed truecolor equivalent, and leaving
 // non-color parameters (bold, reset, etc.) untouched.
 function transformSgrParams(paramsStr) {
-  if (paramsStr === '') return paramsStr; // bare "\x1b[m" == reset
+  if (paramsStr === '') return `0;${HIGH_CONTRAST_FOREGROUND_PARAMS}`; // bare "\x1b[m" == reset
   const parts = paramsStr.split(';').map(Number);
   const out = [];
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i];
-    if ((p === 38 || p === 48) && parts[i + 1] === 2) {
+    if (p === 0) {
+      out.push(p, 38, 2, 255, 255, 255);
+    } else if (p === 39) {
+      out.push(38, 2, 255, 255, 255);
+    } else if ((p === 38 || p === 48) && parts[i + 1] === 2) {
       const layer = String(p);
       const [r, g, b] = [parts[i + 2], parts[i + 3], parts[i + 4]];
       const result = transformColor(layer, r, g, b) || [r, g, b];
@@ -216,11 +223,60 @@ function transformSgrParams(paramsStr) {
   return out.join(';');
 }
 
+function createRewriteState() {
+  return { foreground: DEFAULT_FOREGROUND };
+}
+
+// Keep the foreground that was active before a prompt border glyph. A bare
+// foreground reset (ESC[39m) means "use the terminal default"; it does not
+// restore the previous SGR color, and Copilot's default may be a dim gray.
+// transformSgrParams also makes resets explicitly white so uncolored text
+// stays high contrast even if the terminal ignores OSC 10.
+function updateForegroundState(state, paramsStr) {
+  const parts = paramsStr === '' ? [0] : paramsStr.split(';').map(Number);
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (p === 0 || p === 39) {
+      state.foreground = DEFAULT_FOREGROUND;
+    } else if (p === 38 && parts[i + 1] === 2) {
+      const [r, g, b] = parts.slice(i + 2, i + 5);
+      state.foreground = `\x1b[38;2;${r};${g};${b}m`;
+      i += 4;
+    } else if (p === 38 && parts[i + 1] === 5) {
+      state.foreground = `\x1b[38;5;${parts[i + 2]}m`;
+      i += 2;
+    }
+  }
+}
+
+function rewriteText(text, state) {
+  let out = '';
+  for (const char of text) {
+    if (PROMPT_BORDER_GLYPHS.has(char)) {
+      out += PROMPT_BORDER_COLOR + char + state.foreground;
+    } else {
+      out += char;
+    }
+  }
+  return out;
+}
+
 // Rewrites truecolor, 256-color, and standard 16-color SGR sequences:
 // grays get brightened towards pure white (foreground) or pure black
 // (background), and actual hues get a neon saturation/brightness boost.
-function rewrite(chunk) {
-  return chunk.replace(/\x1b\[([0-9;]*)m/g, (full, params) => `\x1b[${transformSgrParams(params)}m`);
+function rewrite(chunk, state = createRewriteState()) {
+  const transformed = chunk.replace(/\x1b\[([0-9;]*)m/g, (full, params) => `\x1b[${transformSgrParams(params)}m`);
+  const sgr = /\x1b\[([0-9;]*)m/g;
+  let out = '';
+  let cursor = 0;
+  let match;
+  while ((match = sgr.exec(transformed)) !== null) {
+    out += rewriteText(transformed.slice(cursor, match.index), state);
+    out += match[0];
+    updateForegroundState(state, match[1]);
+    cursor = sgr.lastIndex;
+  }
+  return out + rewriteText(transformed.slice(cursor), state);
 }
 
 // Copilot also sets the actual terminal default background/foreground via
@@ -235,6 +291,7 @@ function rewriteOsc(chunk) {
     .replace(/\x1b\]10;[^\x07\x1b]*(\x07|\x1b\\)/g, '\x1b]10;#FFFFFF$1');
 }
 
+if (require.main === module) {
 const cols = process.stdout.columns || 120;
 const rows = process.stdout.rows || 30;
 
@@ -250,6 +307,7 @@ const child = pty.spawn(REAL_COPILOT, process.argv.slice(2), {
 // split across two data chunks, so we don't miss/mangle it.
 let tail = '';
 const MAX_SEQ_LEN = 40; // allow for longer chained SGR sequences (multiple codes per escape)
+const rewriteState = createRewriteState();
 
 child.onData(data => {
   const combined = tail + data;
@@ -263,11 +321,11 @@ child.onData(data => {
     newTail = combined.slice(lastEsc);
   }
   tail = newTail;
-  process.stdout.write(rewriteOsc(rewrite(toProcess)));
+  process.stdout.write(rewriteOsc(rewrite(toProcess, rewriteState)));
 });
 
 child.onExit(({ exitCode }) => {
-  if (tail) process.stdout.write(rewriteOsc(rewrite(tail)));
+  if (tail) process.stdout.write(rewriteOsc(rewrite(tail, rewriteState)));
   process.exit(exitCode);
 });
 
@@ -279,6 +337,15 @@ process.stdout.on('resize', () => {
   child.resize(process.stdout.columns || cols, process.stdout.rows || rows);
 });
 
-process.on('exit', () => {
+function cleanup() {
+  try { child.kill(); } catch (_) {}
   if (process.stdin.isTTY) process.stdin.setRawMode(false);
-});
+}
+
+process.on('SIGINT', () => { cleanup(); process.exit(0); });
+process.on('SIGTERM', () => { cleanup(); process.exit(0); });
+process.on('SIGHUP', () => { cleanup(); process.exit(0); });
+process.on('exit', () => cleanup());
+}
+
+module.exports = { boostGrayBackground, createRewriteState, transformColor, transformSgrParams, rewrite, rewriteOsc };
