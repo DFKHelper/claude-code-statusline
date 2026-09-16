@@ -100,10 +100,11 @@ Copilot CLI's built-in themes (`default`, `github`, `dim`, `high-contrast`, `col
 - **Grayish foreground colors** are blended sharply towards white (bright, legible labels/text), snapping to pure white once close enough.
 - **Prompt-input border glyphs** (`▄▀╻╹┃`) receive an explicit subdued gray foreground, then the previously active text color is restored so following text cannot inherit a darker terminal default, including across delayed redraw chunks.
 - **Foreground resets** (`39`, `0`, and bare SGR resets) become explicit white, so uncolored text remains high contrast even when the terminal's default-color handling is unavailable.
-- **Dark gray backgrounds** are left untouched (passed through unchanged). Copilot's overall canvas background is already forced to pure black via the separate OSC 11 rewrite below, so panel backgrounds (e.g. the prompt input box, `~20,27,34`) keep their natural, slightly-lighter tone — this is what makes the box's right edge read as a border, since that edge has no explicit border glyph and relies purely on background contrast against the canvas. Mid/light gray backgrounds such as ANSI white (`47`) are darkened so a delayed prompt redraw cannot turn the input section white; near-white selection highlights remain unchanged.
+- **Dark gray backgrounds** are left untouched (passed through unchanged). Copilot's overall canvas background is already forced to pure black via the separate OSC 11 rewrite below, so panel backgrounds (e.g. the prompt input box, `~20,27,34`) keep their natural, slightly-lighter tone — this is what makes the box's right edge read as a border, since that edge has no explicit border glyph and relies purely on background contrast against the canvas. Mid/light gray and near-white backgrounds are safely darkened so delayed redraws or light themes cannot turn the canvas white or create unreadable white-on-white text collisions.
 - **Non-gray hues** (diff green/red, status line colors, etc.) get a saturation + lightness boost for a vivid neon look, capped so text stays readable and backgrounds stay dark enough for overlaid text.
 - **Your own submitted prompt line** (`❯ <text>` in the feed) is detected by its distinct near-white RGB(240,246,252) and recolored to bright neon teal, so your messages visually stand out from Copilot's replies.
-- **OSC 10/11** (the actual terminal default foreground/background, set independently of any per-cell color) are forced to white-on-black.
+- **OSC 10/11 & Color Scheme Interception**: Terminal color/theme queries (`\x1b[?996n`, `\x1b]11;?`, `\x1b]10;?`) are intercepted and answered immediately with dark-mode parameters (`\x1b[?997;1n`, black background, white foreground). This prevents newer versions (v1.0.84-6+) from timing out and falling back to native OS light themes.
+- **Supervised `/restart` Lifecycle**: Runs Copilot under supervision (`COPILOT_SUPERVISED="1"` and `COPILOT_LOADER_PID`), catching exit code `75` on `/restart` and seamlessly respawning the PTY session with session state intact, so statusline and high-contrast improvements persist across restarts.
 
 All the brightness/saturation constants live near the top of the file (`DARK_BACKGROUND_MAX_AVG`, `TEXT_BLEND_FACTOR`, `WHITE_SNAP_THRESHOLD`, and the `neonify()` saturation/lightness math) — tune them there if you want a different intensity.
 
@@ -116,7 +117,7 @@ All the brightness/saturation constants live near the top of the file (`DARK_BAC
 
 1. `cd C:\projects\claude-statusline && npm install` (installs `node-pty`; already done if `node_modules\node-pty` exists).
 2. Edit `REAL_COPILOT` at the top of `copilot-hc.js` if your `copilot.exe` isn't at `C:\Users\<you>\AppData\Local\Microsoft\WinGet\Links\copilot.exe` (find it with `(Get-Command copilot).Source` in PowerShell, resolving any symlink with `Get-Item <path> | Select-Object -Expand Target`).
-3. Add a `copilot` function to your PowerShell profile(s) so plain `copilot ...` transparently runs through the wrapper. **Both** PowerShell profiles need this if you use both shells:
+3. Add a `copilot` function or alias to your shell profile(s) so plain `copilot ...` transparently runs through the wrapper.
    - Windows PowerShell 5.1: `C:\Users\<you>\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1`
    - PowerShell 7 (`pwsh`): `C:\Users\<you>\Documents\PowerShell\Microsoft.PowerShell_profile.ps1`
 
@@ -124,6 +125,11 @@ All the brightness/saturation constants live near the top of the file (`DARK_BAC
    function copilot {
        & "C:\Program Files\nodejs\node.exe" "C:\projects\claude-statusline\copilot-hc.js" @args
    }
+   ```
+
+   - Git Bash (`~/.bashrc`):
+   ```bash
+   alias copilot='node "C:/projects/claude-statusline/copilot-hc.js" --yolo'
    ```
 4. Open a **brand new** terminal tab/window (existing tabs won't pick up profile changes) and run `copilot` as usual.
 

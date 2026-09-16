@@ -26,8 +26,19 @@
 
 const pty = require('node-pty');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 
-const REAL_COPILOT = 'C:\\Users\\Gabriel.Grillo\\AppData\\Local\\Microsoft\\WinGet\\Links\\copilot.exe';
+const NPM_COPILOT = process.env.APPDATA
+  ? path.join(process.env.APPDATA, 'npm', 'node_modules', '@github', 'copilot', 'node_modules', '@github', 'copilot-win32-x64', 'copilot.exe')
+  : '';
+const WINGET_COPILOT = process.env.LOCALAPPDATA
+  ? path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WinGet', 'Links', 'copilot.exe')
+  : '';
+
+const REAL_COPILOT = (WINGET_COPILOT && fs.existsSync(WINGET_COPILOT))
+  ? WINGET_COPILOT
+  : NPM_COPILOT;
 
 // How close R/G/B must be to each other to be treated as "grayish" (as
 // opposed to a real hue like the diff red/green) rather than a color with
@@ -107,10 +118,10 @@ function boostGrayForeground(avg, r, g, b) {
 // (e.g. a text selection highlight) are left alone as before; genuinely
 // dark ones are now passed through unchanged rather than blackened.
 function boostGrayBackground(avg, r, g, b) {
-  // Keep the dark prompt panel and the near-white selection highlight as-is.
-  // Copilot's ANSI white background (47) resolves to roughly 229,229,229;
-  // darken that middle range so a delayed prompt redraw cannot turn white.
-  if (avg <= DARK_BACKGROUND_MAX_AVG || avg >= WHITE_SNAP_THRESHOLD) return null;
+  // Keep dark panel backgrounds untouched.
+  // Darken any light or near-white background so text never collides with
+  // a white canvas, preventing unreadable white-on-white text.
+  if (avg <= DARK_BACKGROUND_MAX_AVG) return null;
   const darken = v => v * LIGHT_BACKGROUND_DARKEN_FACTOR;
   return [clamp255(darken(r)), clamp255(darken(g)), clamp255(darken(b))];
 }
@@ -287,65 +298,121 @@ function rewrite(chunk, state = createRewriteState()) {
 // high-contrast treatment.
 function rewriteOsc(chunk) {
   return chunk
-    .replace(/\x1b\]11;[^\x07\x1b]*(\x07|\x1b\\)/g, '\x1b]11;#000000$1')
-    .replace(/\x1b\]10;[^\x07\x1b]*(\x07|\x1b\\)/g, '\x1b]10;#FFFFFF$1');
+    .replace(/\x1b\]11;(?!\?)[^\x07\x1b]*(\x07|\x1b\\)/g, '\x1b]11;#000000$1')
+    .replace(/\x1b\]10;(?!\?)[^\x07\x1b]*(\x07|\x1b\\)/g, '\x1b]10;#FFFFFF$1');
 }
 
 if (require.main === module) {
-const cols = process.stdout.columns || 120;
-const rows = process.stdout.rows || 30;
+  const cols = process.stdout.columns || 120;
+  const rows = process.stdout.rows || 30;
 
-const child = pty.spawn(REAL_COPILOT, process.argv.slice(2), {
-  name: process.env.TERM || 'xterm-256color',
-  cols,
-  rows,
-  cwd: process.cwd(),
-  env: process.env,
-});
+  let child = null;
+  let tail = '';
+  const MAX_SEQ_LEN = 40;
+  let rewriteState = createRewriteState();
 
-// Keep a small tail of unprocessed bytes in case an escape sequence is
-// split across two data chunks, so we don't miss/mangle it.
-let tail = '';
-const MAX_SEQ_LEN = 40; // allow for longer chained SGR sequences (multiple codes per escape)
-const rewriteState = createRewriteState();
+  function startChild(args, cwd) {
+    tail = '';
+    rewriteState = createRewriteState();
 
-child.onData(data => {
-  const combined = tail + data;
-  // Only hold back a tail if it looks like it might be an incomplete
-  // escape sequence at the very end (starts with ESC, no trailing 'm').
-  const lastEsc = combined.lastIndexOf('\x1b');
-  let toProcess = combined;
-  let newTail = '';
-  if (lastEsc !== -1 && combined.length - lastEsc < MAX_SEQ_LEN && !combined.slice(lastEsc).includes('m')) {
-    toProcess = combined.slice(0, lastEsc);
-    newTail = combined.slice(lastEsc);
+    child = pty.spawn(REAL_COPILOT, args, {
+      name: process.env.TERM || 'xterm-256color',
+      cols: process.stdout.columns || cols,
+      rows: process.stdout.rows || rows,
+      cwd: cwd || process.cwd(),
+      env: {
+        ...process.env,
+        COPILOT_SUPERVISED: '1',
+        COPILOT_LOADER_PID: String(process.pid),
+        COPILOT_AUTO_UPDATE: process.env.COPILOT_AUTO_UPDATE ?? 'false',
+      },
+    });
+
+    child.onData(data => {
+      // Intercept and auto-respond to terminal color/theme queries from Copilot CLI
+      // so it never blocks waiting for the outer terminal or falls back to native OS light theme.
+      if (data.includes('\x1b[?996n')) {
+        child.write('\x1b[?997;1n');
+      }
+      if (/\x1b\]11;\?(\x07|\x1b\\)/.test(data)) {
+        child.write('\x1b]11;rgb:0000/0000/0000\x1b\\');
+      }
+      if (/\x1b\]10;\?(\x07|\x1b\\)/.test(data)) {
+        child.write('\x1b]10;rgb:ffff/ffff/ffff\x1b\\');
+      }
+
+      // Filter out query sequences from outer terminal forwarding
+      const filtered = data
+        .replace(/\x1b\[\?996n/g, '')
+        .replace(/\x1b\]11;\?(\x07|\x1b\\)/g, '')
+        .replace(/\x1b\]10;\?(\x07|\x1b\\)/g, '');
+
+      if (!filtered) return;
+
+      const combined = tail + filtered;
+      const lastEsc = combined.lastIndexOf('\x1b');
+      let toProcess = combined;
+      let newTail = '';
+      if (lastEsc !== -1 && combined.length - lastEsc < MAX_SEQ_LEN && !combined.slice(lastEsc).includes('m')) {
+        toProcess = combined.slice(0, lastEsc);
+        newTail = combined.slice(lastEsc);
+      }
+      tail = newTail;
+      process.stdout.write(rewriteOsc(rewrite(toProcess, rewriteState)));
+    });
+
+    child.onExit(({ exitCode }) => {
+      if (exitCode === 75) {
+        // Supervised /restart requested by Copilot CLI
+        const restartFile = path.join(os.homedir(), '.copilot', 'restart', `${process.pid}.json`);
+        let nextArgs = args;
+        let nextCwd = cwd || process.cwd();
+        try {
+          if (fs.existsSync(restartFile)) {
+            const parsed = JSON.parse(fs.readFileSync(restartFile, 'utf8'));
+            try { fs.unlinkSync(restartFile); } catch (_) {}
+            if (parsed && Array.isArray(parsed.argv)) {
+              nextArgs = parsed.argv;
+              if (parsed.sessionId && !nextArgs.includes('--session-id')) {
+                nextArgs = [...nextArgs, '--session-id', parsed.sessionId];
+              }
+            }
+            if (parsed && parsed.cwd) {
+              nextCwd = parsed.cwd;
+            }
+          }
+        } catch (_) {}
+
+        startChild(nextArgs, nextCwd);
+        return;
+      }
+
+      if (tail) process.stdout.write(rewriteOsc(rewrite(tail, rewriteState)));
+      process.exit(exitCode);
+    });
   }
-  tail = newTail;
-  process.stdout.write(rewriteOsc(rewrite(toProcess, rewriteState)));
-});
 
-child.onExit(({ exitCode }) => {
-  if (tail) process.stdout.write(rewriteOsc(rewrite(tail, rewriteState)));
-  process.exit(exitCode);
-});
+  startChild(process.argv.slice(2), process.cwd());
 
-if (process.stdin.isTTY) process.stdin.setRawMode(true);
-process.stdin.resume();
-process.stdin.on('data', d => child.write(d.toString('utf8')));
+  if (process.stdin.isTTY) process.stdin.setRawMode(true);
+  process.stdin.resume();
+  process.stdin.on('data', d => {
+    if (child) child.write(d.toString('utf8'));
+  });
 
-process.stdout.on('resize', () => {
-  child.resize(process.stdout.columns || cols, process.stdout.rows || rows);
-});
+  process.stdout.on('resize', () => {
+    if (child) child.resize(process.stdout.columns || cols, process.stdout.rows || rows);
+  });
 
-function cleanup() {
-  try { child.kill(); } catch (_) {}
-  if (process.stdin.isTTY) process.stdin.setRawMode(false);
-}
+  function cleanup() {
+    try { if (child) child.kill(); } catch (_) {}
+    if (process.stdin.isTTY) process.stdin.setRawMode(false);
+  }
 
-process.on('SIGINT', () => { cleanup(); process.exit(0); });
-process.on('SIGTERM', () => { cleanup(); process.exit(0); });
-process.on('SIGHUP', () => { cleanup(); process.exit(0); });
-process.on('exit', () => cleanup());
+  process.on('SIGINT', () => { cleanup(); process.exit(0); });
+  process.on('SIGTERM', () => { cleanup(); process.exit(0); });
+  process.on('SIGHUP', () => { cleanup(); process.exit(0); });
+  process.on('exit', () => cleanup());
 }
 
 module.exports = { boostGrayBackground, createRewriteState, transformColor, transformSgrParams, rewrite, rewriteOsc };

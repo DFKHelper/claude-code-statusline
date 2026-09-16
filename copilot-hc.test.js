@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createRewriteState, rewrite } = require('./copilot-hc.js');
+const { createRewriteState, rewrite, rewriteOsc } = require('./copilot-hc.js');
 
 const ESC = String.fromCharCode(27);
 
@@ -16,9 +16,21 @@ test('darkens a delayed ANSI white prompt background', () => {
   );
 });
 
-test('preserves a near-white selection highlight', () => {
+test('darkens a near-white background to prevent illegible white-on-white text', () => {
   const sgr = `${ESC}[48;2;255;255;255m`;
-  assert.equal(rewrite(sgr), sgr);
+  assert.equal(rewrite(sgr), `${ESC}[48;2;38;38;38m`);
+});
+
+test('rewriteOsc rewrites OSC background and foreground color sets', () => {
+  assert.equal(rewriteOsc(`${ESC}]11;#ffffff${ESC}\\`), `${ESC}]11;#000000${ESC}\\`);
+  assert.equal(rewriteOsc(`${ESC}]10;#1f2328${ESC}\\`), `${ESC}]10;#FFFFFF${ESC}\\`);
+});
+
+test('rewriteOsc preserves terminal OSC color queries', () => {
+  assert.equal(rewriteOsc(`${ESC}]11;?${ESC}\\`), `${ESC}]11;?${ESC}\\`);
+  assert.equal(rewriteOsc(`${ESC}]10;?${ESC}\\`), `${ESC}]10;?${ESC}\\`);
+  assert.equal(rewriteOsc(`${ESC}]11;?\x07`), `${ESC}]11;?\x07`);
+  assert.equal(rewriteOsc(`${ESC}]10;?\x07`), `${ESC}]10;?\x07`);
 });
 
 test('brightens dark foreground text for high contrast', () => {
