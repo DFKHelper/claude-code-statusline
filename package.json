@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test copilot-hc.test.js tests/guards/architecture_docs_sync.test.js",
+    "test": "node --test copilot-hc.test.js tests/guards/architecture_docs_sync.test.js test/install.test.js",
     "docs:arch": "node scripts/sync-arch-docs.mjs --write",
     "docs:arch:check": "node scripts/sync-arch-docs.mjs --check",
     "prepare": "node scripts/install-git-hooks.mjs"

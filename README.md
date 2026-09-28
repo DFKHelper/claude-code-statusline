@@ -147,13 +147,13 @@ All the brightness/saturation constants live near the top of the file (`DARK_BAC
 
 ## Install script and backups
 
-`node install.js` adds the `statusLine` entry to both `~/.claude/settings.json` and `~/.copilot/settings.json`, keeping every other setting. It skips a tool whose folder doesn't exist, and does nothing if the entry is already correct. Before changing a file, it saves a copy to `settings-backups/claude/` or `settings-backups/copilot/`.
+`node install.js` adds the `statusLine` entry to both `~/.claude/settings.json` and `~/.copilot/settings.json`, keeping every other setting. It skips a tool that has neither a config folder nor backups, and does nothing if the entry is already correct. Before changing a file, it saves a copy to `settings-backups/claude/` or `settings-backups/copilot/`. If `settings.json` is missing but a backup exists (the folder was wiped), it restores the newest backup first, so your other settings come back too.
 
 - `node install.js --backup` saves copies without changing anything.
-- `node install.js --restore` puts the newest copy back (saving the current file first).
+- `node install.js --restore` puts the newest copy back, recreating the config folder if it's gone. The file it replaces is saved as `pre-restore-*.json`; those are never picked by `--restore`, so running it twice gives the same result.
 - Add `--claude` or `--copilot` to act on just one tool.
 
-The copies live in this folder (gitignored, since settings can hold personal details) rather than under `~/.claude` or `~/.copilot`, so they survive those folders being wiped or recreated. The script honors `CLAUDE_CONFIG_DIR` and `COPILOT_HOME`.
+The copies live in this folder (gitignored, since settings can hold personal details) rather than under `~/.claude` or `~/.copilot`, so they survive those folders being wiped or recreated. The script honors `CLAUDE_CONFIG_DIR` and `COPILOT_HOME`; a non-default folder gets its own backup subfolder (e.g. `settings-backups/claude-1a2b3c4d/`) so different profiles never mix. Tests: `npm test`.
 
 ---
 

@@ -41,12 +41,13 @@
 | Module Path | Layer / Role | Primary Exports | Architectural Purpose |
 | :--- | :--- | :--- | :--- |
 | `copilot-hc.js` | **PTY Proxy / Terminal Filter** | `boostGrayBackground`, `createRewriteState`, `transformColor`, `transformSgrParams`, `rewrite` *(+1 more)* | High-contrast / neon proxy for GitHub Copilot CLI. Part of the claude-statusline project alongside statusline. |
+| `install.js` | **Domain Core** | *(CLI Executable / Script)* | Backs up Claude Code's and Copilot CLI's settings.json and (re)adds the statusLine entry to each. Safe to re-r |
 | `scripts/install-git-hooks.mjs` | **DevOps / Hook Manager** | *(CLI Executable / Script)* | scripts/install-git-hooks.mjs Installs the pre-commit Git hook that automatically synchronizes |
 | `scripts/sync-arch-docs.mjs` | **Architecture Guard / Sync Engine** | *(CLI Executable / Script)* | scripts/sync-arch-docs.mjs Automated Architecture Documentation Synchronizer |
 | `statusline-debug.js` | **Diagnostic / Inspection Tool** | *(CLI Executable / Script)* | Captures the raw JSON Claude Code pipes to the status line command. Writes it to STATUSLINE_DEBUG_PATH (defaul |
 | `statusline.js` | **CLI / Status Line Generator** | *(CLI Executable / Script)* | Dual-compatible status line for both Claude Code and GitHub Copilot CLI. One script, one set of defensive fiel |
 
-*Total Modules Analyzed: 5*
+*Total Modules Analyzed: 6*
 <!-- ARCH_COMPONENTS_END -->
 
 ---
