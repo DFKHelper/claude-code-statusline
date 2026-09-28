@@ -2,7 +2,7 @@
 /**
  * scripts/sync-arch-docs.mjs
  *
- * Automated Architecture Documentation Synchronizer
+ * Automated Architecture Documentation Synchronizer.
  * Parses repository source modules and synchronizes the component map
  * in architectural documentation between marker tags.
  *
@@ -113,7 +113,14 @@ function analyzeModule(filePath) {
   }
 
   if (leadingComments.length > 0) {
-    purpose = leadingComments.slice(0, 2).join(' ').replace(/\|/g, '\\|').slice(0, 110);
+    // First sentence only (a "." inside a name like settings.json doesn't end it),
+    // minus a leading copy of the file's own path, capped at 120 chars on a word boundary.
+    let text = leadingComments.join(' ');
+    if (text.startsWith(relPath + ' ')) text = text.slice(relPath.length + 1);
+    const end = text.search(/\.(\s|$)/);
+    if (end !== -1) text = text.slice(0, end);
+    if (text.length > 120) text = text.slice(0, 120).replace(/\s+\S*$/, '') + '…';
+    purpose = text.replace(/\|/g, '\\|');
   }
 
   // 2. Extract exports
@@ -179,6 +186,9 @@ function analyzeModule(filePath) {
   } else if (relPath.includes('sync-arch-docs')) {
     category = 'Architecture Guard / Sync Engine';
     if (!purpose) purpose = 'Automated architecture component inventory validator and synchronizer';
+  } else if (relPath === 'install.js') {
+    category = 'Setup / Settings Installer';
+    if (!purpose) purpose = 'Adds the statusLine entry to Claude Code and Copilot CLI settings, with backups';
   } else if (relPath.includes('install-git-hooks')) {
     category = 'DevOps / Hook Manager';
     if (!purpose) purpose = 'Pre-commit hook installer ensuring automated documentation freshness';
