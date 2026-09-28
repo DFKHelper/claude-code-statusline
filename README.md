@@ -68,7 +68,7 @@ The peak/off-peak indicator includes a live countdown to the next state change.
    ```
    (Use forward slashes even on Windows.)
 
-   Or run `node install.js` from this folder to do it for you. It merges the entry into your existing settings and saves a copy of the old file to `settings-backups/` (gitignored) first. `node install.js --backup` takes a copy without changing anything, and `node install.js --restore` puts the newest copy back. The copies live in this folder rather than `~/.claude`, so they survive `~/.claude` being wiped.
+   Or run `node install.js` from this folder to do it for you (see [Install script and backups](#install-script-and-backups)).
 3. Restart Claude Code (or start a new session). The status bar updates on every turn.
 
 Claude Code's stdin JSON schema is stable and documented at [code.claude.com/docs/en/statusline](https://code.claude.com/docs/en/statusline): `context_window.total_input_tokens`, `context_window.remaining_percentage`, `model.display_name`, `cwd`. `example-input.json` in this repo is a sanitized real payload matching that schema, useful for building/testing against without a live session.
@@ -88,7 +88,9 @@ Claude Code's stdin JSON schema is stable and documented at [code.claude.com/doc
      }
    }
    ```
-   (Use forward slashes even on Windows.)
+   (Use forward slashes even on Windows.) Put it in `settings.json`, not `config.json` — Copilot CLI manages `config.json` itself.
+
+   Or run `node install.js` from this folder to do it for you (see [Install script and backups](#install-script-and-backups)).
 3. Restart Copilot CLI / open a new session.
 
 GitHub Copilot CLI's statusline payload isn't pinned by a stable public schema the way Claude Code's is — field names below were confirmed from `copilot help config` (`statusLine` section), EncodeTS/copilot-statusline (a real third-party Copilot CLI statusline implementation requiring `current_context_tokens` / `displayed_context_limit` under `context_window`), and blog.madkoo.net's defensive field-probing statusline script, which enumerates every field-name variant seen across Copilot CLI versions.
@@ -140,6 +142,18 @@ All the brightness/saturation constants live near the top of the file (`DARK_BAC
 - This is a wrapper around the official binary, not a patch to it — it doesn't touch or modify `copilot.exe` itself, so CLI auto-updates are unaffected.
 - The wrapper only rewrites color-related SGR/OSC sequences (including foreground resets/defaults); it does not otherwise alter Copilot CLI's behavior, input handling, or output content.
 - If Copilot CLI changes its internal color palette in a future version, the specific RGB values referenced here (e.g. the user-prompt-line detection color `240,246,252`) may need to be re-captured. To recapture, spawn `copilot.exe` directly under `node-pty` and dump the raw byte stream to a file (see the constants/comments in `copilot-hc.js` for the exact colors currently matched).
+
+---
+
+## Install script and backups
+
+`node install.js` adds the `statusLine` entry to both `~/.claude/settings.json` and `~/.copilot/settings.json`, keeping every other setting. It skips a tool whose folder doesn't exist, and does nothing if the entry is already correct. Before changing a file, it saves a copy to `settings-backups/claude/` or `settings-backups/copilot/`.
+
+- `node install.js --backup` saves copies without changing anything.
+- `node install.js --restore` puts the newest copy back (saving the current file first).
+- Add `--claude` or `--copilot` to act on just one tool.
+
+The copies live in this folder (gitignored, since settings can hold personal details) rather than under `~/.claude` or `~/.copilot`, so they survive those folders being wiped or recreated. The script honors `CLAUDE_CONFIG_DIR` and `COPILOT_HOME`.
 
 ---
 
