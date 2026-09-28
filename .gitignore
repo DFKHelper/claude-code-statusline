@@ -2,3 +2,4 @@ node_modules/
 *.log
 statusline-capture.json
 *.jsonl
+settings-backups/

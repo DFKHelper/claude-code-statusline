@@ -67,6 +67,8 @@ The peak/off-peak indicator includes a live countdown to the next state change.
    }
    ```
    (Use forward slashes even on Windows.)
+
+   Or run `node install.js` from this folder to do it for you. It merges the entry into your existing settings and saves a copy of the old file to `settings-backups/` (gitignored) first. `node install.js --backup` takes a copy without changing anything, and `node install.js --restore` puts the newest copy back. The copies live in this folder rather than `~/.claude`, so they survive `~/.claude` being wiped.
 3. Restart Claude Code (or start a new session). The status bar updates on every turn.
 
 Claude Code's stdin JSON schema is stable and documented at [code.claude.com/docs/en/statusline](https://code.claude.com/docs/en/statusline): `context_window.total_input_tokens`, `context_window.remaining_percentage`, `model.display_name`, `cwd`. `example-input.json` in this repo is a sanitized real payload matching that schema, useful for building/testing against without a live session.
