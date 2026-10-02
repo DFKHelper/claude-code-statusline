@@ -392,7 +392,13 @@ if (require.main === module) {
     });
   }
 
-  startChild(process.argv.slice(2), process.cwd());
+  const rawCliArgs = process.argv.slice(2);
+  const isHelpOrVersion = rawCliArgs.some(a => ['-h', '--help', '-v', '--version', 'version', 'help'].includes(a));
+  const hasAgentFlag = rawCliArgs.includes('--agent');
+  const initialCliArgs = (!hasAgentFlag && !isHelpOrVersion)
+    ? ['--agent', 'orchestrator', ...rawCliArgs]
+    : rawCliArgs;
+  startChild(initialCliArgs, process.cwd());
 
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
   process.stdin.resume();
