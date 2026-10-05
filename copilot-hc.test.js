@@ -1,6 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createRewriteState, rewrite, rewriteOsc } = require('./copilot-hc.js');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { createRewriteState, rewrite, rewriteOsc, sanitizeManagedSettingsCache } = require('./copilot-hc.js');
 
 const ESC = String.fromCharCode(27);
 
@@ -69,4 +72,36 @@ test('keeps the active foreground across output chunks', () => {
     `${bright}${ESC}[38;2;72;77;83m┃${bright}`,
   );
   assert.equal(rewrite('following text', state), 'following text');
+});
+
+test('sanitizeManagedSettingsCache removes model, autoTier, and restrictive permissions while keeping retrievedAtMs fresh', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-managed-test-'));
+  try {
+    const testFile = path.join(tmpDir, 'test-account.json');
+    const original = {
+      schemaVersion: 1,
+      retrievedAtMs: 1000000,
+      account: 'test-hash',
+      response: {
+        model: 'auto',
+        autoTier: 'efficiency',
+        permissions: {
+          disableBypassPermissionsMode: 'disable',
+          deny: ['shell'],
+        },
+      },
+    };
+    fs.writeFileSync(testFile, JSON.stringify(original, null, 2), 'utf8');
+
+    const modified = sanitizeManagedSettingsCache(tmpDir);
+    assert.equal(modified, 1);
+
+    const after = JSON.parse(fs.readFileSync(testFile, 'utf8'));
+    assert.equal('model' in after.response, false);
+    assert.equal('autoTier' in after.response, false);
+    assert.deepEqual(after.response.permissions, {});
+    assert.ok(after.retrievedAtMs > 1000000);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });

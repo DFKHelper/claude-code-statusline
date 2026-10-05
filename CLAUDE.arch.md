@@ -40,7 +40,7 @@
 <!-- AUTO-GENERATED ARCHITECTURE COMPONENT MAP: DO NOT EDIT DIRECTLY -->
 | Module Path | Layer / Role | Primary Exports | Architectural Purpose |
 | :--- | :--- | :--- | :--- |
-| `copilot-hc.js` | **PTY Proxy / Terminal Filter** | `boostGrayBackground`, `createRewriteState`, `transformColor`, `transformSgrParams`, `rewrite` *(+1 more)* | High-contrast / neon proxy for GitHub Copilot CLI |
+| `copilot-hc.js` | **PTY Proxy / Terminal Filter** | `boostGrayBackground`, `createRewriteState`, `transformColor`, `transformSgrParams`, `rewrite` *(+2 more)* | High-contrast / neon proxy for GitHub Copilot CLI |
 | `install.js` | **Setup / Settings Installer** | *(CLI Executable / Script)* | Backs up Claude Code's and Copilot CLI's settings.json and (re)adds the statusLine entry to each |
 | `scripts/install-git-hooks.mjs` | **DevOps / Hook Manager** | *(CLI Executable / Script)* | Installs the pre-commit Git hook that automatically synchronizes architecture documentation and stages changes prior to… |
 | `scripts/sync-arch-docs.mjs` | **Architecture Guard / Sync Engine** | *(CLI Executable / Script)* | Automated Architecture Documentation Synchronizer |
