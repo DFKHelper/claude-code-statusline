@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createRewriteState, rewrite, rewriteOsc, sanitizeManagedSettingsCache } = require('./copilot-hc.js');
+const { createRewriteState, rewrite, rewriteOsc, sanitizeManagedSettingsCache, resolveConfiguredModel } = require('./copilot-hc.js');
 
 const ESC = String.fromCharCode(27);
 
@@ -74,10 +74,11 @@ test('keeps the active foreground across output chunks', () => {
   assert.equal(rewrite('following text', state), 'following text');
 });
 
-test('sanitizeManagedSettingsCache removes model, autoTier, and restrictive permissions while keeping retrievedAtMs fresh', () => {
+test('sanitizeManagedSettingsCache removes model, autoTier, and restrictive permissions while keeping retrievedAtMs fresh and tolerating comment headers', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-managed-test-'));
   try {
     const testFile = path.join(tmpDir, 'test-account.json');
+    const header = '// Disposable cache for enterprise managed settings, safe to delete. Managed automatically.\n';
     const original = {
       schemaVersion: 1,
       retrievedAtMs: 1000000,
@@ -91,16 +92,35 @@ test('sanitizeManagedSettingsCache removes model, autoTier, and restrictive perm
         },
       },
     };
-    fs.writeFileSync(testFile, JSON.stringify(original, null, 2), 'utf8');
+    fs.writeFileSync(testFile, header + JSON.stringify(original, null, 2), 'utf8');
 
     const modified = sanitizeManagedSettingsCache(tmpDir);
     assert.equal(modified, 1);
 
-    const after = JSON.parse(fs.readFileSync(testFile, 'utf8'));
+    const raw = fs.readFileSync(testFile, 'utf8');
+    assert.ok(raw.startsWith('// Disposable cache'));
+    const cleaned = raw.replace(/^\s*\/\/.*$/gm, '').trim();
+    const after = JSON.parse(cleaned);
     assert.equal('model' in after.response, false);
     assert.equal('autoTier' in after.response, false);
     assert.deepEqual(after.response.permissions, {});
     assert.ok(after.retrievedAtMs > 1000000);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('resolveConfiguredModel reads model from settings.json and tolerates comments', () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-settings-test-'));
+  try {
+    const copilotDir = path.join(tmpDir, '.copilot');
+    fs.mkdirSync(copilotDir, { recursive: true });
+    const settingsFile = path.join(copilotDir, 'settings.json');
+    const content = '// User configuration\n{\n  "model": "claude-sonnet-4.6"\n}\n';
+    fs.writeFileSync(settingsFile, content, 'utf8');
+
+    const model = resolveConfiguredModel(tmpDir);
+    assert.equal(model, 'claude-sonnet-4.6');
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

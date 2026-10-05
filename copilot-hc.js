@@ -320,6 +320,7 @@ function sanitizeManagedSettingsCache(customDir) {
     }
 
     let modified = 0;
+    const header = '// Disposable cache for enterprise managed settings, safe to delete. Managed automatically.\n';
     for (const dir of targetDirs) {
       if (!fs.existsSync(dir)) continue;
       const files = fs.readdirSync(dir);
@@ -328,7 +329,8 @@ function sanitizeManagedSettingsCache(customDir) {
         const filePath = path.join(dir, file);
         try {
           const raw = fs.readFileSync(filePath, 'utf8');
-          const parsed = JSON.parse(raw);
+          const cleaned = raw.replace(/^\s*\/\/.*$/gm, '').trim();
+          const parsed = JSON.parse(cleaned);
           if (parsed && typeof parsed === 'object') {
             const resp = parsed.response;
             const hasRestrictedKeys = resp && (
@@ -342,7 +344,7 @@ function sanitizeManagedSettingsCache(customDir) {
             if (hasRestrictedKeys || isStale) {
               parsed.response = { permissions: {} };
               parsed.retrievedAtMs = Date.now();
-              fs.writeFileSync(filePath, JSON.stringify(parsed, null, 2), 'utf8');
+              fs.writeFileSync(filePath, header + JSON.stringify(parsed, null, 2) + '\n', 'utf8');
               modified++;
             }
           }
@@ -353,6 +355,34 @@ function sanitizeManagedSettingsCache(customDir) {
   } catch (_) {
     return 0;
   }
+}
+
+/**
+ * Resolves the currently configured default model from local or user settings.json.
+ * Checks project-level .github/copilot/settings.json or .copilot/settings.json first,
+ * then falls back to user-level ~/.copilot/settings.json.
+ */
+function resolveConfiguredModel(cwd) {
+  try {
+    const candidates = [];
+    if (cwd) {
+      candidates.push(path.join(cwd, '.github', 'copilot', 'settings.json'));
+      candidates.push(path.join(cwd, '.copilot', 'settings.json'));
+    }
+    candidates.push(path.join(os.homedir(), '.copilot', 'settings.json'));
+
+    for (const cand of candidates) {
+      if (fs.existsSync(cand)) {
+        const raw = fs.readFileSync(cand, 'utf8');
+        const cleaned = raw.replace(/^\s*\/\/.*$/gm, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (parsed && typeof parsed.model === 'string' && parsed.model.trim()) {
+          return parsed.model.trim();
+        }
+      }
+    }
+  } catch (_) {}
+  return null;
 }
 
 if (require.main === module) {
@@ -449,9 +479,14 @@ if (require.main === module) {
   const rawCliArgs = process.argv.slice(2);
   const isHelpOrVersion = rawCliArgs.some(a => ['-h', '--help', '-v', '--version', 'version', 'help'].includes(a));
   const hasAgentFlag = rawCliArgs.includes('--agent');
-  const initialCliArgs = (!hasAgentFlag && !isHelpOrVersion)
-    ? ['--agent', 'orchestrator', ...rawCliArgs]
-    : rawCliArgs;
+  const hasModelFlag = rawCliArgs.some(a => a === '--model' || a.startsWith('--model='));
+  const configuredModel = (!hasModelFlag && !isHelpOrVersion) ? resolveConfiguredModel(process.cwd()) : null;
+
+  const initialCliArgs = [
+    ...(!hasAgentFlag && !isHelpOrVersion ? ['--agent', 'orchestrator'] : []),
+    ...(configuredModel ? ['--model', configuredModel] : []),
+    ...rawCliArgs,
+  ];
   startChild(initialCliArgs, process.cwd());
 
   const sanitizeTimer = setInterval(sanitizeManagedSettingsCache, 30000);
@@ -479,4 +514,13 @@ if (require.main === module) {
   process.on('exit', () => cleanup());
 }
 
-module.exports = { boostGrayBackground, createRewriteState, transformColor, transformSgrParams, rewrite, rewriteOsc, sanitizeManagedSettingsCache };
+module.exports = {
+  boostGrayBackground,
+  createRewriteState,
+  transformColor,
+  transformSgrParams,
+  rewrite,
+  rewriteOsc,
+  sanitizeManagedSettingsCache,
+  resolveConfiguredModel,
+};
